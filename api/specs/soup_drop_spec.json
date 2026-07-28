@@ -1,0 +1,103 @@
+{
+  "byte_order": "little",
+  "encoding": "sbe",
+  "schema_id": 901,
+  "version": 1,
+
+  "common_header": {
+    "note": "SBE header (8) + Mercury header (16) = 24 bytes, precedes every payload",
+    "fields": [
+      {"name": "block_length", "type": "uint", "length": 2},
+      {"name": "template_id",  "type": "uint", "length": 2},
+      {"name": "schema_id",    "type": "uint", "length": 2},
+      {"name": "version",      "type": "uint", "length": 2},
+      {"name": "timestamp_ns",           "type": "int", "length": 8},
+      {"name": "matching_engine_seq_num", "type": "int", "length": 8}
+    ]
+  },
+
+  "messages": {
+    "1": {
+      "name": "user",
+      "total_length": 108,
+      "fields": [
+        {"name": "user_index",        "type": "int",   "length": 4},
+        {"name": "user_id",           "type": "int",   "length": 4},
+        {"name": "user_name",         "type": "alpha", "length": 32},
+        {"name": "liquidity_provider","type": "int",   "length": 1},
+        {"name": "state",             "type": "alpha", "length": 1},
+        {"name": "firm_index",        "type": "int",   "length": 4},
+        {"name": "firm_id",           "type": "int",   "length": 4},
+        {"name": "executing_firm",    "type": "alpha", "length": 10},
+        {"name": "capacity",          "type": "alpha", "length": 1},
+        {"name": "clearing_firm",     "type": "alpha", "length": 6},
+        {"name": "clearing_ref",      "type": "alpha", "length": 8},
+        {"name": "allow_override",    "type": "alpha", "length": 1},
+        {"name": "live_order_limit",  "type": "int",   "length": 4},
+        {"name": "user_type_id",      "type": "int",   "length": 4}
+      ]
+    },
+    "3": {
+      "name": "market",
+      "total_length": 40,
+      "fields": [
+        {"name": "market_index",          "type": "int",   "length": 4},
+        {"name": "market_id",             "type": "int",   "length": 4},
+        {"name": "market_name",           "type": "alpha", "length": 4},
+        {"name": "market_trading_session","type": "int",   "length": 4}
+      ]
+    },
+    "4": {
+      "name": "firm",
+      "total_length": 110,
+      "fields": [
+        {"name": "firm_index", "type": "int",   "length": 4},
+        {"name": "firm_id",    "type": "int",   "length": 4},
+        {"name": "firm_code",  "type": "alpha", "length": 32},
+        {"name": "psms_code",  "type": "alpha", "length": 12},
+        {"name": "firm_name",  "type": "alpha", "length": 32},
+        {"name": "firm_type",  "type": "alpha", "length": 1},
+        {"name": "state",      "type": "alpha", "length": 1}
+      ]
+    },
+    "5": {
+      "name": "security",
+      "total_length": 94,
+      "fields": [
+        {"name": "security_index",   "type": "int",   "length": 4},
+        {"name": "security_id",      "type": "int",   "length": 4},
+        {"name": "symbol",           "type": "alpha", "length": 9},
+        {"name": "security_name",    "type": "alpha", "length": 32},
+        {"name": "security_isin",    "type": "alpha", "length": 12},
+        {"name": "tradable_quantity","type": "int",   "length": 8},
+        {"name": "margin_class",     "type": "int",   "length": 1}
+      ]
+    },
+    "20": {
+      "name": "firm_status",
+      "total_length": 33,
+      "note": "runtime firm state-change event (distinct from Firm record)",
+      "fields": [
+        {"name": "firm_index", "type": "int",   "length": 4},
+        {"name": "firm_id",    "type": "int",   "length": 4},
+        {"name": "state",      "type": "alpha", "length": 1}
+      ]
+    },
+    "21": {
+      "name": "user_status",
+      "total_length": 33,
+      "note": "runtime user state-change event (suspend/activate); distinct from User record",
+      "fields": [
+        {"name": "user_index", "type": "int",   "length": 4},
+        {"name": "user_id",    "type": "int",   "length": 4},
+        {"name": "state",      "type": "alpha", "length": 1}
+      ]
+    }
+  },
+
+  "states": {
+    "A": "active",
+    "S": "suspended",
+    "D": "deleted"
+  }
+}

@@ -1,0 +1,134 @@
+{
+  "byte_order": "little",
+  "messages": {
+    "14": {
+      "name": "list_request",
+      "direction": "out",
+      "fields": [
+        {"name": "msg_type",            "type": "uint", "length": 1, "value": 14},
+        {"name": "correlation_id",      "type": "uint", "length": 8},
+        {"name": "reference_data_type", "type": "uint", "length": 2}
+      ]
+    },
+    "29": {
+      "name": "update_user_state_request",
+      "direction": "out",
+      "fields": [
+        {"name": "msg_type",          "type": "uint",  "length": 1, "value": 29},
+        {"name": "correlation_id",    "type": "uint",  "length": 8},
+        {"name": "user_id",           "type": "uint",  "length": 4},
+        {"name": "suspension_status", "type": "alpha", "length": 1}
+      ]
+    },
+
+    "0": {
+      "name": "accept_response",
+      "direction": "in",
+      "fields": [
+        {"name": "msg_type",       "type": "uint", "length": 1},
+        {"name": "correlation_id", "type": "uint", "length": 8}
+      ]
+    },
+    "8": {
+      "name": "reject_response",
+      "direction": "in",
+      "fields": [
+        {"name": "msg_type",       "type": "uint", "length": 1},
+        {"name": "correlation_id", "type": "uint", "length": 8},
+        {"name": "reject_reason",  "type": "uint", "length": 2}
+      ]
+    },
+    "5": {
+      "name": "list_reply",
+      "direction": "in",
+      "fields": [
+        {"name": "msg_type",        "type": "uint", "length": 1},
+        {"name": "correlation_id",  "type": "uint", "length": 8},
+        {"name": "page",            "type": "uint", "length": 4},
+        {"name": "next_page",       "type": "int",  "length": 4},
+        {"name": "message_count",   "type": "uint", "length": 4},
+        {"name": "list_msg_type",   "type": "uint", "length": 1},
+        {"name": "list_msg_length", "type": "uint", "length": 4}
+      ]
+    },
+
+    "13": {
+      "name": "user_reply",
+      "direction": "in",
+      "note": "115-byte layout verified byte-for-byte against live ME",
+      "fields": [
+        {"name": "msg_type",          "type": "uint",  "length": 1},
+        {"name": "correlation_id",    "type": "uint",  "length": 8},
+        {"name": "user_id",           "type": "uint",  "length": 4},
+        {"name": "user_name",         "type": "alpha", "length": 32},
+        {"name": "firm_id",           "type": "uint",  "length": 4},
+        {"name": "firm_code",         "type": "alpha", "length": 32},
+        {"name": "suspension_status", "type": "alpha", "length": 1},
+        {"name": "short_sell_adjust", "type": "alpha", "length": 1},
+        {"name": "user_type_name",    "type": "alpha", "length": 32}
+      ]
+    },
+    "3": {
+      "name": "entry_point_reply",
+      "direction": "in",
+      "note": "tightly-packed order; assert row size against list header at runtime",
+      "fields": [
+        {"name": "msg_type",         "type": "uint",  "length": 1},
+        {"name": "correlation_id",   "type": "uint",  "length": 8},
+        {"name": "host_user_id",     "type": "uint",  "length": 4},
+        {"name": "client_user_id",   "type": "uint",  "length": 4},
+        {"name": "protocol",         "type": "uint",  "length": 2},
+        {"name": "host_user_name",   "type": "alpha", "length": 32},
+        {"name": "client_user_name", "type": "alpha", "length": 32},
+        {"name": "address",          "type": "uint",  "length": 4},
+        {"name": "port",             "type": "uint",  "length": 2},
+        {"name": "remote_address",   "type": "uint",  "length": 4},
+        {"name": "remote_port",      "type": "uint",  "length": 2},
+        {"name": "logon_count",      "type": "uint",  "length": 2},
+        {"name": "logon_status",     "type": "uint",  "length": 2}
+      ]
+    }
+  },
+
+  "reference_data_types": {
+    "entry_point": 2,
+    "user": 7
+  },
+
+  "reject_reasons": {
+    "1": "invalid_security",
+    "2": "invalid_status",
+    "3": "invalid_version",
+    "4": "request_changes_nothing",
+    "5": "invalid_market",
+    "6": "invalid_firm",
+    "7": "invalid_orderbook",
+    "8": "invalid_user",
+    "9": "unknown_trade_id",
+    "10": "trade_not_pending",
+    "11": "invalid_margin_restriction",
+    "12": "invalid_short_sell_restriction",
+    "13": "unknown_user",
+    "14": "invalid_short_sell_adjust",
+    "15": "invalid_system_event_priority",
+    "16": "duplicate_system_event",
+    "17": "unknown_system_event",
+    "18": "invalid_system_event_specification",
+    "19": "trade_canceled",
+    "20": "unknown_order_id",
+    "21": "order_closed",
+    "22": "invalid_market_phase",
+    "23": "invalid_margin_phase",
+    "24": "insufficient_memory_state",
+    "25": "not_supported",
+    "26": "invalid_date",
+    "27": "invalid_price",
+    "28": "invalid_protocol",
+    "29": "unknown_entry_point",
+    "30": "no_entry_point_for_protocol",
+    "31": "invalid_message_direction",
+    "32": "unknown_cluster_id",
+    "33": "invalid_sequence_number",
+    "34": "user_already_logged_on"
+  }
+}

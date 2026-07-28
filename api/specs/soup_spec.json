@@ -1,0 +1,66 @@
+{
+  "byte_order": "big",
+  "messages": {
+    "L": {
+      "name": "login_request",
+      "direction": "out",
+      "fields": [
+        {"name": "packet_length", "type": "uint",  "length": 2},
+        {"name": "packet_type",   "type": "alpha", "length": 1, "value": "L"},
+        {"name": "username",      "type": "alpha", "length": 6,  "pad": "right"},
+        {"name": "password",      "type": "alpha", "length": 10, "pad": "right"},
+        {"name": "session",       "type": "alpha", "length": 10, "pad": "left"},
+        {"name": "sequence",      "type": "alpha", "length": 20, "pad": "left"}
+      ]
+    },
+    "A": {
+      "name": "login_accepted",
+      "direction": "in",
+      "fields": [
+        {"name": "packet_type", "type": "alpha", "length": 1},
+        {"name": "session",     "type": "alpha", "length": 10},
+        {"name": "sequence",    "type": "alpha", "length": 20}
+      ]
+    },
+    "J": {
+      "name": "login_rejected",
+      "direction": "in",
+      "fields": [
+        {"name": "packet_type",        "type": "alpha", "length": 1},
+        {"name": "reject_reason_code", "type": "alpha", "length": 1}
+      ]
+    },
+    "U": {
+      "name": "unsequenced_data",
+      "direction": "out",
+      "fields": [
+        {"name": "packet_length", "type": "uint",  "length": 2},
+        {"name": "packet_type",   "type": "alpha", "length": 1, "value": "U"}
+      ]
+    },
+    "S": {
+      "name": "sequenced_data",
+      "direction": "in",
+      "fields": [
+        {"name": "packet_length", "type": "uint",  "length": 2},
+        {"name": "packet_type",   "type": "alpha", "length": 1}
+      ]
+    },
+    "H": {
+      "name": "heartbeat",
+      "direction": "both",
+      "fields": [
+        {"name": "packet_length", "type": "uint",  "length": 2},
+        {"name": "packet_type",   "type": "alpha", "length": 1}
+      ]
+    },
+    "O": {
+      "name": "logout_request",
+      "direction": "out",
+      "fields": [
+        {"name": "packet_length", "type": "uint",  "length": 2},
+        {"name": "packet_type",   "type": "alpha", "length": 1, "value": "O"}
+      ]
+    }
+  }
+}

@@ -171,63 +171,80 @@ class DropReader:
         return list(self.snapshot["user"].values())
 
     def run_live(self, on_replay_done=None, on_change=None, stop_event=None,
-                 heartbeat_interval=1.0):
-        """Connect, replay to build the snapshot, then stream live changes.
+                 heartbeat_interval=1.0, debug=False):
+        """Connect, replay to build the snapshot, then stream live changes,
+        holding the connection open with client heartbeats.
 
-        Verified against the live feed: the DROP server replays from seq 1,
-        sends server heartbeats ('H') when idle, and pushes live 'S' messages
-        as state changes occur - all on the same held connection. We must send
-        client heartbeats or the server eventually drops us.
+        Single-threaded via select(): wait up to heartbeat_interval for data.
+        - data ready  -> read the full packet (blocking; never mid-packet
+          timeout, so no framing desync)
+        - no data     -> send a client heartbeat (SoupBinTCP requires the
+          client to heartbeat ~every second or the server closes the session)
+        This is the standard SoupBinTCP client pattern and keeps us listening
+        continuously. The supervisor reconnects if the socket ever drops.
 
         Callbacks:
-          on_replay_done(users) - fired once when replay catches up (snapshot ready)
+          on_replay_done(users) - fired once the feed goes idle (replay done)
           on_change(kind, record, users) - fired on each live state change
-        Blocks until stop_event is set or the connection drops (raises).
         """
-        import threading
+        import select
+        import time as _t
 
         self.reset()
         self.connect_and_login()
+        raw = self.sock.raw()
 
-        # Client heartbeat sender in the background.
-        hb_stop = threading.Event()
-
-        def _hb():
-            while not hb_stop.is_set():
-                try:
-                    self.send_heartbeat()
-                except Exception:
-                    return
-                hb_stop.wait(heartbeat_interval)
-
-        hb_thread = threading.Thread(target=_hb, name="drop-hb", daemon=True)
-        hb_thread.start()
+        def log(msg):
+            if debug:
+                print("[%s dbg] %s" % (_t.strftime("%H:%M:%S"), msg))
 
         live = False
+        data_count = 0
+        hb_sent = 0
         try:
             while stop_event is None or not stop_event.is_set():
-                pkt_type, body = self._read_soup_packet()
+                ready, _, _ = select.select([raw], [], [], heartbeat_interval)
 
-                if pkt_type == "H":
-                    # Server heartbeat. First one after data => replay caught up.
+                if not ready:
+                    # Idle: keep the session alive with a client heartbeat.
+                    self.send_heartbeat()
+                    hb_sent += 1
+                    log("idle -> sent client heartbeat (#%d)" % hb_sent)
                     if not live:
+                        # First idle gap = replay caught up, snapshot ready.
                         live = True
                         if on_replay_done:
                             on_replay_done(self.users())
                     continue
 
+                pkt_type, body = self._read_soup_packet()
+
+                if pkt_type == "H":
+                    log("recv server heartbeat (after %d data msgs)" % data_count)
+                    # A server heartbeat also means idle/live; reply in kind.
+                    self.send_heartbeat()
+                    hb_sent += 1
+                    if not live:
+                        live = True
+                        if on_replay_done:
+                            on_replay_done(self.users())
+                    continue
                 if pkt_type == "Z":
-                    # End of session - server is done with this session.
+                    log("recv END OF SESSION (Z)")
                     break
-
                 if pkt_type != "S":
-                    continue                       # debug/other framing, ignore
+                    log("recv other packet %r len=%d" % (pkt_type, len(body)))
+                    continue
 
+                data_count += 1
                 changed = self._handle_data(body)
                 if live and changed and on_change:
                     on_change(changed[0], changed[1], self.users())
+        except Exception as e:
+            log("loop ended after %d data msgs, %d hb sent, live=%s: %s"
+                % (data_count, hb_sent, live, e))
+            raise
         finally:
-            hb_stop.set()
             self.close()
 
     def _handle_data(self, body):

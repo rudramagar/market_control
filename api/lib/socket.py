@@ -1,4 +1,16 @@
-import socket as _socket
+"""
+Socket transport for SoupBinTCP.
+
+Owns the TCP connection lifecycle and the raw read/write primitives.
+protocol.py stays pure (bytes in/out); client.py orchestrates. This file
+is the only place that touches the OS socket.
+
+Note: this module is named socket.py but imports the stdlib socket via an
+absolute import below, which resolves to the standard library, not this
+file - relative imports (from .socket) are what load this module.
+"""
+import socket as _socket   # stdlib; aliased so the name is unambiguous
+
 
 class SoupSocket:
     """A thin TCP wrapper with exact-length reads."""
@@ -36,6 +48,16 @@ class SoupSocket:
                 self._sock.close()
             finally:
                 self._sock = None
+
+    def set_timeout(self, seconds):
+        """Adjust the socket read timeout (e.g. generous for live streaming)."""
+        self.timeout = seconds
+        if self._sock:
+            self._sock.settimeout(seconds)
+
+    def raw(self):
+        """The underlying socket, for use with select() in the live loop."""
+        return self._sock
 
     @property
     def connected(self):

@@ -222,7 +222,8 @@ def _drop_live(settings):
 
     print("connecting to DROP %s:%d..." % (settings.host, settings.port))
     try:
-        reader.run_live(on_replay_done=on_replay_done, on_change=on_change)
+        reader.run_live(on_replay_done=on_replay_done, on_change=on_change,
+                        debug=True)
         return 0
     except KeyboardInterrupt:
         print("\nstopped.")

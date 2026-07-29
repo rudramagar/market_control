@@ -1,24 +1,22 @@
 #!/usr/bin/env python3
 """
-Raw DROP wire diagnostic. Prints EVERY soup packet type as it arrives,
-so we can see exactly what the server does after replay: heartbeats?
-end-of-session? silence? This is what tells us why live updates aren't
-showing up.
+Single-threaded live probe: login seq 0, then use select() to read when
+data is ready and send a client heartbeat when idle - ALL in one thread,
+so send and recv never overlap. This is the pattern a well-behaved C++
+SoupBinTCP client uses to hold a live connection open forever.
 
 Usage:
-    python3 drop_probe.py xnt-dde1api01n 12001 drop01 <password> [send_hb]
-
-Add "send_hb" as a 6th arg to also send client heartbeats every 1s in a
-background thread (tests whether the server needs them to keep feeding us).
+    python3 drop_live_probe.py xnt-dde1api01n 12001 drop01 <pw> [seq]
+    (seq defaults to 0 = live only, no replay)
 """
 import socket
 import struct
 import sys
-import threading
+import select
 import time
 
 
-def build_login(user, pw, session="", seq="1"):
+def build_login(user, pw, session="", seq="0"):
     body = (b"L" + user.encode().ljust(6)[:6] + pw.encode().ljust(10)[:10]
             + session.encode().rjust(10)[:10] + seq.encode().rjust(20)[:20])
     return struct.pack(">H", len(body)) + body
@@ -29,7 +27,7 @@ def read_exact(sock, n):
     while len(buf) < n:
         chunk = sock.recv(n - len(buf))
         if not chunk:
-            raise ConnectionError("closed")
+            raise ConnectionError("closed after %d/%d" % (len(buf), n))
         buf += chunk
     return buf
 
@@ -40,89 +38,59 @@ def read_packet(sock):
     return chr(body[0]), body
 
 
-def heartbeat_loop(sock, stop):
-    """Send client 'H' every second until stopped."""
-    hb = struct.pack(">H", 1) + b"H"
-    while not stop.is_set():
-        try:
-            sock.sendall(hb)
-        except Exception:
-            return
-        stop.wait(1.0)
-
-
 def main():
     if len(sys.argv) < 5:
-        print("usage: drop_probe.py <host> <port> <user> <pw> [send_hb]")
+        print("usage: drop_live_probe.py <host> <port> <user> <pw> [seq]")
         return 2
     host, port, user, pw = sys.argv[1:5]
-    send_hb = len(sys.argv) > 5 and sys.argv[5] == "send_hb"
+    seq = sys.argv[5] if len(sys.argv) > 5 else "0"
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.settimeout(15.0)
     sock.connect((host, int(port)))
-    sock.sendall(build_login(user, pw))
-
+    sock.sendall(build_login(user, pw, seq=seq))
     ptype, body = read_packet(sock)
     if ptype != "A":
-        print("login failed:", ptype, body[:40]); return 1
-    print("login accepted. session/seq:", body[1:].decode("latin1").strip())
+        print("login failed:", ptype); return 1
+    print("login accepted (seq=%s). session/seq:" % seq,
+          body[1:].decode("latin1").strip())
+    print("single-threaded: read when ready, heartbeat when idle (1s)")
 
-    stop = threading.Event()
-    if send_hb:
-        threading.Thread(target=heartbeat_loop, args=(sock, stop),
-                         daemon=True).start()
-        print("[sending client heartbeats every 1s]")
-
-    print("reading packets (Ctrl-C to stop)...")
-    print("format: <count> type=<T> len=<n> [templateId if S] [seq]")
-
-    counts = {}
+    hb = struct.pack(">H", 1) + b"H"
+    sock.setblocking(True)
+    last_hb = time.time()
+    hb_count = 0
     data_count = 0
-    replay_done_announced = False
-    last_data_time = time.time()
+    started = time.time()
 
     try:
         while True:
-            try:
+            ready, _, _ = select.select([sock], [], [], 1.0)
+            now = time.time()
+            if ready:
                 ptype, body = read_packet(sock)
-            except socket.timeout:
-                # No packet for 15s. If we saw data then silence, replay is done
-                # and the server is NOT sending heartbeats or live data.
-                gap = time.time() - last_data_time
-                print(">>> %.0fs SILENCE (no packets at all, incl. no server heartbeat)" % gap)
-                continue
-
-            counts[ptype] = counts.get(ptype, 0) + 1
-
-            if ptype == "S":
-                data_count += 1
-                last_data_time = time.time()
-                # decode SBE header: blockLength(2) templateId(2) schemaId(2) ver(2)
-                sbe = body[1:]
-                template_id = struct.unpack("<H", sbe[2:4])[0]
-                # mercury header: timestamp(8) seq(8) at offset 8
-                seq = struct.unpack("<q", sbe[16:24])[0]
-                # print only every 500th during replay, but ALL once replay seems done
-                if data_count % 500 == 0 and not replay_done_announced:
-                    print("  ...%d data msgs (last templateId=%d seq=%d)"
-                          % (data_count, template_id, seq))
-                if replay_done_announced:
-                    print("  LIVE DATA: type=S templateId=%d seq=%d" % (template_id, seq))
-            else:
-                # Non-data packet: heartbeat H, end-of-session Z, debug +, etc.
-                last_data_time = time.time()
-                print(">>> NON-DATA PACKET: type=%r len=%d  (H=server heartbeat, "
-                      "Z=end of session)" % (ptype, len(body)))
-                if not replay_done_announced:
-                    replay_done_announced = True
-                    print(">>> (replay likely done; now watching for live) <<<")
-    except KeyboardInterrupt:
-        print("\nstopped.")
+                if ptype == "S":
+                    data_count += 1
+                    sbe = body[1:]
+                    tid = struct.unpack("<H", sbe[2:4])[0]
+                    s = struct.unpack("<q", sbe[16:24])[0]
+                    print("[%5.1fs] DATA templateId=%d seq=%d" % (now-started, tid, s))
+                elif ptype == "H":
+                    print("[%5.1fs] server heartbeat" % (now-started))
+                elif ptype == "Z":
+                    print("[%5.1fs] END OF SESSION" % (now-started)); break
+                else:
+                    print("[%5.1fs] packet %r" % (now-started, ptype))
+            # send a client heartbeat ~every second, in THIS thread only
+            if now - last_hb >= 1.0:
+                sock.sendall(hb)
+                last_hb = now
+                hb_count += 1
+                print("[%5.1fs] -> sent client heartbeat #%d" % (now-started, hb_count))
+    except (ConnectionError, OSError) as e:
+        print("[%5.1fs] connection ended: %s" % (time.time()-started, e))
     finally:
-        stop.set()
-        print("packet type counts:", counts)
-        print("total data (S) msgs:", data_count)
+        print("survived %.1fs, %d data msgs, %d client heartbeats sent"
+              % (time.time()-started, data_count, hb_count))
         sock.close()
 
 
